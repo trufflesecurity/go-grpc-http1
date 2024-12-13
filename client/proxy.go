@@ -21,8 +21,10 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"time"
 
 	"github.com/golang/glog"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/pkg/errors"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -217,9 +219,22 @@ func makeDialOpts(endpoint string, dialCtx pipeconn.DialContextFunc, tlsClientCo
 	dialOpts = append(dialOpts, grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 		return dialCtx(ctx)
 	}))
+
+	// Add TLS if configured.
 	if tlsClientConf != nil {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(newCredsFromSideChannel(endpoint, credentials.NewTLS(tlsClientConf))))
 	}
+
+	// Add retry policy.
+	retryOpts := []retry.CallOption{
+		retry.WithBackoff(retry.BackoffLinearWithJitter(time.Second, 0.1)),
+		retry.WithCodes(codes.Unavailable, codes.DeadlineExceeded, codes.Canceled, codes.Internal),
+		retry.WithMax(3),
+	}
+	dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(
+		retry.UnaryClientInterceptor(retryOpts...),
+	))
+
 	dialOpts = append(dialOpts, connectOpts.dialOpts...)
 
 	return dialOpts
