@@ -231,9 +231,7 @@ func makeDialOpts(endpoint string, dialCtx pipeconn.DialContextFunc, tlsClientCo
 		retry.WithCodes(codes.Unavailable, codes.DeadlineExceeded, codes.Canceled, codes.Internal),
 		retry.WithMax(3),
 	}
-	dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(
-		retry.UnaryClientInterceptor(retryOpts...),
-	))
+	dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(retry.UnaryClientInterceptor(retryOpts...)))
 
 	dialOpts = append(dialOpts, connectOpts.dialOpts...)
 
